@@ -9,16 +9,13 @@ nltk.download("stopwords")
 
 GLOVE_PATH = "data/glove.6B.300d.txt"
 NO_GLOVE_DIMENSIONS = 300
+PREPROCESSING_METHODS = ["glove"]
 
 
-def tokenize(text: str) -> list:
+def tokenize(text: str, preprocessing: str) -> list:
     # lowercasing and tokenization
     text = word_tokenize(text)
     text = map(lambda sample: sample.lower(), text)
-
-    # stemming
-    # stemmer = PorterStemmer()
-    # text = [stemmer.stem(word) for word in text]
 
     # stopword removal
     stop_words = set(stopwords.words("english"))
@@ -26,6 +23,11 @@ def tokenize(text: str) -> list:
 
     # punctuation removal
     text = list(filter(lambda word: word not in string.punctuation, text))
+
+    # stemming
+    if not preprocessing == "glove":
+        stemmer = PorterStemmer()
+        text = [stemmer.stem(word) for word in text]
 
     return text
 
@@ -53,19 +55,34 @@ def vectorize(text: list, embeddings: dict) -> list:
     return vectorized
 
 
-def read_data(file: str) -> (list, list):
-    df = pd.read_csv(file)
+def read_data(file: str, preprocessing: str) -> (list, list):
+    assert preprocessing in PREPROCESSING_METHODS, f"Preprocessing method \"{preprocessing}\" is not supported!"
+
+    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
     X = []
     y = []
-    max_length = 0
-    embeddings = get_glove_embeddings()
+    embeddings = {}
+
+    if preprocessing == "glove":
+        embeddings = get_glove_embeddings()
 
     for i in df.index:
-        tokenized = tokenize(df["text"][i])
-        vectorized = vectorize(tokenized, embeddings)
+        sample = tokenize(df["text"][i], preprocessing)
 
-        X.append(vectorized)
+        if preprocessing == "glove":
+            sample = vectorize(sample, embeddings)
+
+        X.append(sample)
         y.append(df["label"][i])
-        max_length = max(max_length, len(vectorized))
 
     return X, y
+
+
+def write_preds(file: str, preds: list):
+    with open(file, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["id", "label"])
+
+        writer.writeheader()
+
+        for i, pred in enumerate(preds):
+            writer.writerow({"id": i, "label": pred})
