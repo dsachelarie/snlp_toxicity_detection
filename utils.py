@@ -1,3 +1,4 @@
+from datetime import datetime
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
@@ -9,10 +10,10 @@ nltk.download("stopwords")
 
 GLOVE_PATH = "data/glove.6B.300d.txt"
 NO_GLOVE_DIMENSIONS = 300
-PREPROCESSING_METHODS = ["glove"]
+PREPROCESSING_METHODS = ["glove", "glove_tf_prob", "pretrained"]
 
 
-def tokenize(text: str, preprocessing: str) -> list:
+def tokenize(text: str) -> list:
     # lowercasing and tokenization
     text = word_tokenize(text)
     text = map(lambda sample: sample.lower(), text)
@@ -24,12 +25,47 @@ def tokenize(text: str, preprocessing: str) -> list:
     # punctuation removal
     text = list(filter(lambda word: word not in string.punctuation, text))
 
-    # stemming
-    if not preprocessing == "glove":
-        stemmer = PorterStemmer()
-        text = [stemmer.stem(word) for word in text]
-
     return text
+
+
+def get_tf_prob_weights(file: str) -> list:
+    print("Calculating tf-prob weights")
+
+    start_time = datetime.now()
+    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
+    stemmer = PorterStemmer()
+    stems = []
+    stem_counts = {0: {}, 1: {}}
+
+    for i in df.index:
+        sample = tokenize(df["text"][i])
+        sample_stems = []
+
+        for word in sample:
+            stemmed_word = stemmer.stem(word)
+            sample_stems.append(stemmed_word)
+
+            if stemmed_word in stem_counts[df["label"][i]]:
+                stem_counts[df["label"][i]][stemmed_word] += 1
+
+            else:
+                stem_counts[df["label"][i]][stemmed_word] = 1
+
+        stems.append(sample_stems)
+
+    weights = []
+
+    for sample in stems:
+        sample_weights = []
+
+        for word in sample:
+            sample_weights.append(1)  # TODO
+
+        weights.append(sample_weights)
+
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
+
+    return weights
 
 
 def get_glove_embeddings() -> dict:
@@ -42,43 +78,57 @@ def get_glove_embeddings() -> dict:
     return glove
 
 
-def vectorize(text: list, embeddings: dict) -> list:
+def vectorize(text: list, embeddings: dict, weights=None) -> list:
     vectorized = [0] * NO_GLOVE_DIMENSIONS
 
-    for word in text:
+    for i, word in enumerate(text):
         if word in embeddings:
             word_embedding = embeddings[word]
 
-            for i in range(NO_GLOVE_DIMENSIONS):
-                vectorized[i] += word_embedding[i]
+            for j in range(NO_GLOVE_DIMENSIONS):
+                if weights is not None:
+                    vectorized[j] += (weights[i] * word_embedding[j])
+
+                else:
+                    vectorized[j] += word_embedding[j]
 
     return vectorized
 
 
-def read_data(file: str, preprocessing: str) -> (list, list):
+def read_data(file: str, preprocessing: str, weights=None) -> (list, list):
+    print("Preprocessing data")
     assert preprocessing in PREPROCESSING_METHODS, f"Preprocessing method \"{preprocessing}\" is not supported!"
 
+    start_time = datetime.now()
     df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
+
+    if preprocessing == "pretrained":
+        pass
+
     X = []
     y = []
-    embeddings = {}
-
-    if preprocessing == "glove":
-        embeddings = get_glove_embeddings()
+    embeddings = get_glove_embeddings()
 
     for i in df.index:
-        sample = tokenize(df["text"][i], preprocessing)
+        sample = tokenize(df["text"][i])
 
-        if preprocessing == "glove":
+        if weights is not None:
+            sample = vectorize(sample, embeddings, weights[i])
+
+        else:
             sample = vectorize(sample, embeddings)
 
         X.append(sample)
         y.append(df["label"][i])
 
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
+
     return X, y
 
 
 def write_preds(file: str, preds: list):
+    print("Writing predictions to file")
+
     with open(file, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["id", "label"])
 
