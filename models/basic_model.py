@@ -1,7 +1,8 @@
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
-from utils import read_data, write_preds, get_tf_prob_weights
+from utils import read_data, write_preds, get_tf_prob_weights, get_tf_prob_weights_cached
+import os
 
 
 class BasicModel:
@@ -9,8 +10,13 @@ class BasicModel:
         self.mode = mode
         weights = None
 
-        if preprocessing == "glove_tf_prob":
-            weights = get_tf_prob_weights("data/train_2024.csv")
+        if preprocessing == "glove_tf_prob" and not os.path.isfile(f"data/tf_prob_weights_cache_{mode}.csv"):
+            weights = get_tf_prob_weights("data/train_2024.csv", cache=f"data/tf_prob_weights_cache_{mode}.csv")
+
+        elif preprocessing == "glove_tf_prob":
+            print("Cache file found for tf-prob weights")
+
+            weights = get_tf_prob_weights_cached(f"data/tf_prob_weights_cache_{mode}.csv")
 
         if self.mode == "debug":
             X, y = read_data("data/train_2024.csv", preprocessing, weights)
