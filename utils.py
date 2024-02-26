@@ -4,7 +4,6 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 import pandas as pd
-import string
 import csv
 import math
 
@@ -24,28 +23,38 @@ def tokenize(text: str) -> list:
     stop_words = set(stopwords.words("english"))
     text = list(filter(lambda sample: sample not in stop_words, text))
 
-    # punctuation removal
-    text = list(filter(lambda word: word not in string.punctuation, text))
+    # removal of words with non-alpha characters
+    text = list(filter(lambda word: word.isalpha(), text))
 
     return text
 
 
-def prob(label: int, word: str, counts: dict, words_which_samples: dict,
+def prob(word: str, counts: dict, words_which_samples: dict,
          no_words_per_label: list, no_samples_per_label: list) -> float:
-    if word in counts[abs(label - 1)]:
-        a_b = (counts[label][word] / no_words_per_label[label]) \
-              / (counts[abs(label - 1)][word] / no_words_per_label[abs(label - 1)])
+    a_bc = []
 
-    else:
-        a_b = (counts[label][word] / no_words_per_label[label]) \
-              / (1 / no_words_per_label[abs(label - 1)])
+    for label in [0, 1]:
+        if word not in counts[label]:
+            a_bc.append(0)
 
-    a_c = len(words_which_samples[label][word]) / (no_samples_per_label[label] - len(words_which_samples[label][word]))
+        else:
+            if word in counts[abs(label - 1)]:
+                a_b = (counts[label][word] / no_words_per_label[label]) \
+                      / (counts[abs(label - 1)][word] / no_words_per_label[abs(label - 1)])
 
-    return math.log(1 + a_b * a_c)
+            else:
+                a_b = (counts[label][word] / no_words_per_label[label]) \
+                      / (1 / no_words_per_label[abs(label - 1)])
+
+            a_c = len(words_which_samples[label][word]) / (
+                        no_samples_per_label[label] - len(words_which_samples[label][word]))
+
+            a_bc.append(a_b * a_c)
+
+    return math.log(1 + max(a_bc))
 
 
-def get_tf_prob_weights(file: str, cache=None) -> list:
+def get_tf_prob_weights(file: str, cache=None, prob_per_word=None) -> list:
     print("Calculating tf-prob weights")
 
     start_time = datetime.now()
@@ -79,26 +88,64 @@ def get_tf_prob_weights(file: str, cache=None) -> list:
 
     weights = []
     no_words_per_label = [sum(stem_counts[0].values()), sum(stem_counts[1].values())]
-    prob_per_word = {0: {}, 1: {}}
+    i = 0
+    no_samples = len(stems)
 
-    for sample, label in zip(stems, labels):
+    if prob_per_word is None:
+        prob_per_word = {}
+
+    for sample in stems:
+        sample_weights = []
+
+        if i % 100 == 0:
+            print(f"{i}/{no_samples}")
+
+        for word in sample:
+            if word not in prob_per_word:
+                prob_per_word[word] = prob(word, stem_counts, stem_which_samples,
+                                           no_words_per_label, [labels.count(0), labels.count(1)])
+
+            sample_weights.append(sample.count(word) / len(sample) * prob_per_word[word])
+
+        weights.append(sample_weights)
+        i += 1
+
+    if cache is not None:
+        with open(cache, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["word", "weight"])
+
+            writer.writeheader()
+
+            for key in prob_per_word.keys():
+                writer.writerow({"word": key, "weight": prob_per_word[key]})
+
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
+
+    return weights
+
+
+def get_tf_prob_test_weights(file: str, prob_per_word: dict) -> list:
+    print("Calculating tf-prob test weights")
+
+    start_time = datetime.now()
+    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
+    stemmer = PorterStemmer()
+    weights = []
+    default_prob = math.log(1 + 1 / len(df))  # when we have no "prob" information, we give this default minimum achievable prob value
+
+    for i in df.index:
+        sample = tokenize(df["text"][i])
+        sample = [stemmer.stem(word) for word in sample]
         sample_weights = []
 
         for word in sample:
-            if word not in prob_per_word[label]:
-                prob_per_word[label][word] = prob(label, word, stem_counts, stem_which_samples,
-                                                  no_words_per_label, [labels.count(0), labels.count(1)])
-                sample_weights.append(sample.count(word) / len(sample) * prob_per_word[label][word])
+            if word in prob_per_word:
+                sample_weights.append(sample.count(word) / len(sample) * prob_per_word[word])
+
+            else:
+                sample_weights.append(sample.count(word) / len(sample) * default_prob)
 
         weights.append(sample_weights)
-
-    if cache is not None:
-        with open(cache, "w", newline="") as f:
-            for sample, label in zip(weights, labels):
-                for weight in sample:
-                    f.write(str(weight) + " ")
-
-                f.write("," + str(label) + "\n")
 
     print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
 
@@ -175,17 +222,11 @@ def write_preds(file: str, preds: list):
             writer.writerow({"id": i, "label": pred})
 
 
-def get_tf_prob_weights_cached(file: str):
+def read_prob_weights_cached(file: str):
     df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
-    weights = []
+    prob_per_word = {}
 
     for i in df.index:
-        if type(df["weights"][i]) is not str:
-            weights.append([])
+        prob_per_word[df["word"][i]] = df["weight"][i]
 
-        else:
-            split = df["weights"][i].split(" ")
-            split.pop()
-            weights.append([float(el) for el in split])
-
-    return weights
+    return prob_per_word
