@@ -10,13 +10,13 @@ class BasicModel:
         self.mode = mode
         weights = None
 
-        if preprocessing == "glove_tf_prob" and not os.path.isfile(f"data/tf_prob_weights_cache_{mode}.csv"):
-            weights = get_tf_prob_weights("data/train_2024.csv", cache=f"data/tf_prob_weights_cache_{mode}.csv")
+        if preprocessing == "glove_tf_prob" and not os.path.isfile(f"data/tf_prob_weights_cache.csv"):
+            weights = get_tf_prob_weights("data/train_2024.csv", cache=f"data/tf_prob_weights_cache.csv")
 
         elif preprocessing == "glove_tf_prob":
             print("Cache file found for tf-prob weights")
 
-            weights = get_tf_prob_weights_cached(f"data/tf_prob_weights_cache_{mode}.csv")
+            weights = get_tf_prob_weights_cached(f"data/tf_prob_weights_cache.csv")
 
         if self.mode == "debug":
             X, y = read_data("data/train_2024.csv", preprocessing, weights)
@@ -24,7 +24,7 @@ class BasicModel:
 
         elif self.mode == "release":
             self.X_train, self.y_train = read_data("data/train_2024.csv", preprocessing, weights)
-            self.X_test, self.y_test = read_data("data/test_2024.csv", preprocessing, weights)
+            self.X_test, self.y_test = read_data("data/test_2024.csv", preprocessing)
 
         else:
             raise Exception(f"Mode \"{self.mode}\" is not supported!")

@@ -7,6 +7,7 @@ import pandas as pd
 import string
 import csv
 import math
+
 nltk.download("stopwords")
 
 GLOVE_PATH = "data/glove.6B.300d.txt"
@@ -33,13 +34,13 @@ def prob(label: int, word: str, counts: dict, words_which_samples: dict,
          no_words_per_label: list, no_samples_per_label: list) -> float:
     if word in counts[abs(label - 1)]:
         a_b = (counts[label][word] / no_words_per_label[label]) \
-               / (counts[abs(label - 1)][word] / no_words_per_label[abs(label - 1)])
+              / (counts[abs(label - 1)][word] / no_words_per_label[abs(label - 1)])
 
     else:
         a_b = (counts[label][word] / no_words_per_label[label]) \
-               / (1 / no_words_per_label[abs(label - 1)])
+              / (1 / no_words_per_label[abs(label - 1)])
 
-    a_c = len(words_which_samples[label][word]) / no_samples_per_label[label]
+    a_c = len(words_which_samples[label][word]) / (no_samples_per_label[label] - len(words_which_samples[label][word]))
 
     return math.log(1 + a_b * a_c)
 
@@ -78,14 +79,16 @@ def get_tf_prob_weights(file: str, cache=None) -> list:
 
     weights = []
     no_words_per_label = [sum(stem_counts[0].values()), sum(stem_counts[1].values())]
+    prob_per_word = {0: {}, 1: {}}
 
     for sample, label in zip(stems, labels):
         sample_weights = []
 
         for word in sample:
-            sample_weights.append(sample.count(word) / len(sample) *
-                                  prob(label, word, stem_counts, stem_which_samples,
-                                       no_words_per_label, [labels.count(0), labels.count(1)]))
+            if word not in prob_per_word[label]:
+                prob_per_word[label][word] = prob(label, word, stem_counts, stem_which_samples,
+                                                  no_words_per_label, [labels.count(0), labels.count(1)])
+                sample_weights.append(sample.count(word) / len(sample) * prob_per_word[label][word])
 
         weights.append(sample_weights)
 
@@ -173,4 +176,16 @@ def write_preds(file: str, preds: list):
 
 
 def get_tf_prob_weights_cached(file: str):
-    pass
+    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
+    weights = []
+
+    for i in df.index:
+        if type(df["weights"][i]) is not str:
+            weights.append([])
+
+        else:
+            split = df["weights"][i].split(" ")
+            split.pop()
+            weights.append([float(el) for el in split])
+
+    return weights
