@@ -11,7 +11,8 @@ nltk.download("stopwords")
 
 GLOVE_PATH = "data/glove.6B.300d.txt"
 NO_GLOVE_DIMENSIONS = 300
-PREPROCESSING_METHODS = ["glove", "glove_tf_prob", "pretrained"]
+PREPROCESSING_METHODS = ["glove", "glove_rtf_igm", "pretrained"]
+IGM_LAMBDA = 7.0
 
 
 def tokenize(text: str) -> list:
@@ -29,33 +30,20 @@ def tokenize(text: str) -> list:
     return text
 
 
-def prob(word: str, counts: dict, words_which_samples: dict,
-         no_words_per_label: list, no_samples_per_label: list) -> float:
-    a_bc = []
+def igm(word: str, counts: dict, no_words_per_label: list) -> float:
+    if word not in counts[0]:
+        a_b = (counts[1][word] / no_words_per_label[1]) / (1 / no_words_per_label[0])
+    elif word not in counts[1]:
+        a_b = (counts[0][word] / no_words_per_label[0]) / (1 / no_words_per_label[1])
+    else:
+        a_b = max((counts[0][word] / no_words_per_label[0]) / (counts[1][word] / no_words_per_label[1]),
+                  (counts[1][word] / no_words_per_label[1]) / (counts[0][word] / no_words_per_label[0]))
 
-    for label in [0, 1]:
-        if word not in counts[label]:
-            a_bc.append(0)
-
-        else:
-            if word in counts[abs(label - 1)]:
-                a_b = (counts[label][word] / no_words_per_label[label]) \
-                      / (counts[abs(label - 1)][word] / no_words_per_label[abs(label - 1)])
-
-            else:
-                a_b = (counts[label][word] / no_words_per_label[label]) \
-                      / (1 / no_words_per_label[abs(label - 1)])
-
-            a_c = len(words_which_samples[label][word]) / (
-                        no_samples_per_label[label] - len(words_which_samples[label][word]))
-
-            a_bc.append(a_b * a_c)
-
-    return math.log(1 + max(a_bc))
+    return 1 + IGM_LAMBDA * a_b
 
 
-def get_tf_prob_weights(file: str, cache=None, prob_per_word=None) -> list:
-    print("Calculating tf-prob weights")
+def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> list:
+    print("Calculating rtf-igm weights")
 
     start_time = datetime.now()
     df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
@@ -63,7 +51,6 @@ def get_tf_prob_weights(file: str, cache=None, prob_per_word=None) -> list:
     stems = []
     labels = []
     stem_counts = {0: {}, 1: {}}
-    stem_which_samples = {0: {}, 1: {}}
 
     for i in df.index:
         sample = tokenize(df["text"][i])
@@ -76,20 +63,14 @@ def get_tf_prob_weights(file: str, cache=None, prob_per_word=None) -> list:
             if stemmed_word in stem_counts[df["label"][i]]:
                 stem_counts[df["label"][i]][stemmed_word] += 1
 
-                if i not in stem_which_samples[df["label"][i]][stemmed_word]:
-                    stem_which_samples[df["label"][i]][stemmed_word].append(i)
-
             else:
                 stem_counts[df["label"][i]][stemmed_word] = 1
-                stem_which_samples[df["label"][i]][stemmed_word] = [i]
 
         stems.append(sample_stems)
         labels.append(df["label"][i])
 
     weights = []
     no_words_per_label = [sum(stem_counts[0].values()), sum(stem_counts[1].values())]
-    i = 0
-    no_samples = len(stems)
 
     if prob_per_word is None:
         prob_per_word = {}
@@ -97,18 +78,13 @@ def get_tf_prob_weights(file: str, cache=None, prob_per_word=None) -> list:
     for sample in stems:
         sample_weights = []
 
-        if i % 100 == 0:
-            print(f"{i}/{no_samples}")
-
         for word in sample:
             if word not in prob_per_word:
-                prob_per_word[word] = prob(word, stem_counts, stem_which_samples,
-                                           no_words_per_label, [labels.count(0), labels.count(1)])
+                prob_per_word[word] = igm(word, stem_counts, no_words_per_label)
 
-            sample_weights.append(sample.count(word) / len(sample) * prob_per_word[word])
+            sample_weights.append(math.sqrt(sample.count(word) / len(sample)) * prob_per_word[word])
 
         weights.append(sample_weights)
-        i += 1
 
     if cache is not None:
         with open(cache, "w", newline="", encoding="utf-8") as f:
@@ -124,14 +100,15 @@ def get_tf_prob_weights(file: str, cache=None, prob_per_word=None) -> list:
     return weights
 
 
-def get_tf_prob_test_weights(file: str, prob_per_word: dict) -> list:
-    print("Calculating tf-prob test weights")
+def get_rtf_igm_test_weights(file: str, prob_per_word: dict) -> list:
+    print("Calculating rtf-igm test weights")
 
     start_time = datetime.now()
     df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
     stemmer = PorterStemmer()
     weights = []
-    default_prob = math.log(1 + 1 / len(df))  # when we have no "prob" information, we give this default minimum achievable prob value
+    # when we have no "igm" information, we consider the word to be occurring with equal frequency in both classes
+    default_prob = 1 + IGM_LAMBDA
 
     for i in df.index:
         sample = tokenize(df["text"][i])
@@ -140,10 +117,10 @@ def get_tf_prob_test_weights(file: str, prob_per_word: dict) -> list:
 
         for word in sample:
             if word in prob_per_word:
-                sample_weights.append(sample.count(word) / len(sample) * prob_per_word[word])
+                sample_weights.append(math.sqrt(sample.count(word) / len(sample)) * prob_per_word[word])
 
             else:
-                sample_weights.append(sample.count(word) / len(sample) * default_prob)
+                sample_weights.append(math.sqrt(sample.count(word) / len(sample)) * default_prob)
 
         weights.append(sample_weights)
 
