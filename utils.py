@@ -31,10 +31,15 @@ def tokenize(text: str) -> list:
 
 
 def igm(word: str, counts: dict, no_words_per_label: list) -> float:
-    if word not in counts[0]:
+    if (word not in counts[0] or counts[0][word] == 1) and (word not in counts[1] or counts[1][word] == 1):
+        a_b = 1  # avoiding a_b values < 1 when word occurs only once or 0 times in both classes
+
+    elif word not in counts[0]:
         a_b = (counts[1][word] / no_words_per_label[1]) / (1 / no_words_per_label[0])
+
     elif word not in counts[1]:
         a_b = (counts[0][word] / no_words_per_label[0]) / (1 / no_words_per_label[1])
+
     else:
         a_b = max((counts[0][word] / no_words_per_label[0]) / (counts[1][word] / no_words_per_label[1]),
                   (counts[1][word] / no_words_per_label[1]) / (counts[0][word] / no_words_per_label[0]))
@@ -42,7 +47,7 @@ def igm(word: str, counts: dict, no_words_per_label: list) -> float:
     return 1 + IGM_LAMBDA * a_b
 
 
-def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> list:
+def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> (list, dict):
     print("Calculating rtf-igm weights")
 
     start_time = datetime.now()
@@ -97,7 +102,7 @@ def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> list:
 
     print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
 
-    return weights
+    return weights, prob_per_word
 
 
 def get_rtf_igm_test_weights(file: str, prob_per_word: dict) -> list:

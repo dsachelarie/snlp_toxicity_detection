@@ -12,13 +12,13 @@ class BasicModel:
         prob_per_word = None
 
         if preprocessing == "glove_rtf_igm" and not os.path.isfile("data/cache_prob_weights.csv"):
-            weights = get_rtf_igm_weights("data/train_2024.csv", cache="data/cache_prob_weights.csv")
+            weights, prob_per_word = get_rtf_igm_weights("data/train_2024.csv", cache="data/cache_prob_weights.csv")
 
         elif preprocessing == "glove_rtf_igm":
             print("Cache file found for rtf-igm weights")
 
             prob_per_word = read_prob_weights_cached("data/cache_prob_weights.csv")
-            weights = get_rtf_igm_weights("data/train_2024.csv", prob_per_word=prob_per_word)
+            weights, prob_per_word = get_rtf_igm_weights("data/train_2024.csv", prob_per_word=prob_per_word)
 
         if self.mode == "debug":
             X, y = read_data("data/train_2024.csv", preprocessing, weights=weights)
