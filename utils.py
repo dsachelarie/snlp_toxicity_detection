@@ -102,6 +102,8 @@ def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> (list, dic
 
     print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
 
+    #print(list(prob_per_word.items())[:20])
+
     return weights, prob_per_word
 
 
@@ -169,7 +171,7 @@ def read_data(file: str, preprocessing: str, weights=None) -> (list, list):
     df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
 
     if preprocessing == "pretrained":
-        pass
+        return df["text"], df["label"]
 
     X = []
     y = []
