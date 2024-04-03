@@ -3,7 +3,8 @@ from models.bert_model import BertModel
 
 
 if __name__ == "__main__":
-    #model = BasicModel(mode="debug", preprocessing="glove_rtf_igm")
-    #model = BertModel(preprocessing="glove_rtf_igm")
-    model = BertModel()
+    model = BasicModel(mode="debug", preprocessing="glove_rtf_igm")
+    # model = BertModel(preprocessing="glove_rtf_igm")
+    # model = BertModel()
+
     model.run()

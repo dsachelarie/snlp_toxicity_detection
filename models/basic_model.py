@@ -1,14 +1,13 @@
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
-from sklearn.model_selection import train_test_split
-from utils import read_data, write_preds, get_rtf_igm_weights, read_prob_weights_cached, get_rtf_igm_test_weights
-import os
+
+from models.model import Model
+from utils import write_preds
 
 
 class BasicModel(Model):
     def __init__(self, mode="debug", preprocessing="glove_rtf_igm"):
         super(BasicModel, self).__init__(mode, preprocessing)
-
 
     def run(self):
         print("Running SVM")
