@@ -5,7 +5,7 @@ from utils import read_data, get_rtf_igm_weights, read_prob_weights_cached, get_
 
 
 class Model:
-    def __init__(self, mode="debug", preprocessing="glove"):
+    def __init__(self, model_name, mode="debug", preprocessing="glove"):
         self.mode = mode
         weights = None
         prob_per_word = None

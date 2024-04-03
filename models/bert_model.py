@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 from collections import Counter
 import nltk
 from nltk.tokenize import word_tokenize
@@ -111,37 +108,37 @@ class BertModel:
         return output.predictions, output.label_ids
 
 
-    
-model = BertModel(MODEL_NAME)
+if __name__ == "__main__":
+    model = BertModel(MODEL_NAME)
 
-train_df = pd.read_csv("data/train_2024.csv")
-train_df = train_df[["text", "label"]]
-test_df = pd.read_csv("data/dev_2024.csv")
-test_df = test_df[["text", "label"]]
+    train_df = pd.read_csv("data/train_2024.csv")
+    train_df = train_df[["text", "label"]]
+    test_df = pd.read_csv("data/dev_2024.csv")
+    test_df = test_df[["text", "label"]]
 
-train_df_0 = train_df[train_df["label"] == 0]
-train_df_1 = train_df[train_df["label"] == 1]
-ones = train_df_1.shape[0]
-train_df_0_sampled = train_df_0.sample(n=ones, replace=False)
-new_train_df = pd.concat([train_df_0_sampled, train_df_1])
-new_train_df = new_train_df.sample(frac=1).reset_index(drop=True)
-new_train_df = Dataset.from_pandas(new_train_df) # :1250
-test_df = Dataset.from_pandas(test_df) # :1000
+    train_df_0 = train_df[train_df["label"] == 0]
+    train_df_1 = train_df[train_df["label"] == 1]
+    ones = train_df_1.shape[0]
+    train_df_0_sampled = train_df_0.sample(n=ones, replace=False)
+    new_train_df = pd.concat([train_df_0_sampled, train_df_1])
+    new_train_df = new_train_df.sample(frac=1).reset_index(drop=True)
+    new_train_df = Dataset.from_pandas(new_train_df) # :1250
+    test_df = Dataset.from_pandas(test_df) # :1000
 
-tokenized_train = model.tokenize(new_train_df, maximum = 125, training_bool=True)
-tokenized_test = model.tokenize(test_df, maximum = 125, training_bool=False)
+    tokenized_train = model.tokenize(new_train_df, maximum = 125, training_bool=True)
+    tokenized_test = model.tokenize(test_df, maximum = 125, training_bool=False)
 
 
-preds, labels = model.run(tokenized_train, tokenized_test)
-# Converting logits to probabilities
-probs = F.softmax(torch.tensor(preds), dim=1)
-predicted_class = torch.argmax(probs, dim=1)
-print("preds: ")
-print(predicted_class.numpy())
-print("true labels: ")
-print(labels)
+    preds, labels = model.run(tokenized_train, tokenized_test)
+    # Converting logits to probabilities
+    probs = F.softmax(torch.tensor(preds), dim=1)
+    predicted_class = torch.argmax(probs, dim=1)
+    print("preds: ")
+    print(predicted_class.numpy())
+    print("true labels: ")
+    print(labels)
 
-print("F1-score is: ")
-print(f1_score(labels, predicted_class.numpy()))
-print("Accuracy is: ")
-print(accuracy_score(labels, predicted_class.numpy()))
+    print("F1-score is: ")
+    print(f1_score(labels, predicted_class.numpy()))
+    print("Accuracy is: ")
+    print(accuracy_score(labels, predicted_class.numpy()))

@@ -1,13 +1,12 @@
+from models.model import Model
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
-
-from models.model import Model
 from utils import write_preds
 
 
 class BasicModel(Model):
     def __init__(self, mode="debug", preprocessing="glove_rtf_igm"):
-        super(BasicModel, self).__init__(mode, preprocessing)
+        super(BasicModel, self).__init__("basic_model", mode, preprocessing)
 
     def run(self):
         print("Running SVM")
