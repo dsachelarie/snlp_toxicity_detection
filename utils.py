@@ -3,6 +3,7 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
+import numpy as np
 import pandas as pd
 import csv
 import math
@@ -47,7 +48,7 @@ def igm(word: str, counts: dict, no_words_per_label: list) -> float:
     return 1 + IGM_LAMBDA * a_b
 
 
-def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> (list, dict):
+def get_rtf_igm_weights(file: str) -> (list, dict):
     print("Calculating rtf-igm weights")
 
     start_time = datetime.now()
@@ -76,9 +77,7 @@ def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> (list, dic
 
     weights = []
     no_words_per_label = [sum(stem_counts[0].values()), sum(stem_counts[1].values())]
-
-    if prob_per_word is None:
-        prob_per_word = {}
+    prob_per_word = {}
 
     for sample in stems:
         sample_weights = []
@@ -91,18 +90,7 @@ def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> (list, dic
 
         weights.append(sample_weights)
 
-    if cache is not None:
-        with open(cache, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=["word", "weight"])
-
-            writer.writeheader()
-
-            for key in prob_per_word.keys():
-                writer.writerow({"word": key, "weight": prob_per_word[key]})
-
     print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
-
-    #print(list(prob_per_word.items())[:20])
 
     return weights, prob_per_word
 
@@ -146,24 +134,35 @@ def get_glove_embeddings() -> dict:
     return glove
 
 
-def vectorize(text: list, embeddings: dict, weights=None) -> list:
-    vectorized = [0] * NO_GLOVE_DIMENSIONS
+def vectorize(text: list, embeddings: dict, weights=None, separate_word_embeddings=False) -> list:
+    if separate_word_embeddings:
+        vectorized = list(np.zeros((len(text), NO_GLOVE_DIMENSIONS)))
+    else:
+        vectorized = [0] * NO_GLOVE_DIMENSIONS
 
     for i, word in enumerate(text):
         if word in embeddings:
             word_embedding = embeddings[word]
 
             for j in range(NO_GLOVE_DIMENSIONS):
-                if weights is not None:
-                    vectorized[j] += (weights[i] * word_embedding[j])
+                if separate_word_embeddings:
+                    if weights is not None:
+                        vectorized[i][j] = weights[i] * word_embedding[j]
+
+                    else:
+                        vectorized[i][j] = word_embedding[j]
 
                 else:
-                    vectorized[j] += word_embedding[j]
+                    if weights is not None:
+                        vectorized[j] += (weights[i] * word_embedding[j])
+
+                    else:
+                        vectorized[j] += word_embedding[j]
 
     return vectorized
 
 
-def read_data(file: str, preprocessing: str, weights=None) -> (list, list):
+def read_data(file: str, preprocessing: str, weights=None, separate_word_embeddings=False) -> (list, list):
     print("Preprocessing data")
     assert preprocessing in PREPROCESSING_METHODS, f"Preprocessing method \"{preprocessing}\" is not supported!"
 
@@ -181,10 +180,10 @@ def read_data(file: str, preprocessing: str, weights=None) -> (list, list):
         sample = tokenize(df["text"][i])
 
         if weights is not None:
-            sample = vectorize(sample, embeddings, weights[i])
+            sample = vectorize(sample, embeddings, weights=weights[i], separate_word_embeddings=separate_word_embeddings)
 
         else:
-            sample = vectorize(sample, embeddings)
+            sample = vectorize(sample, embeddings, separate_word_embeddings=separate_word_embeddings)
 
         X.append(sample)
         y.append(df["label"][i])
@@ -204,13 +203,3 @@ def write_preds(file: str, preds: list):
 
         for i, pred in enumerate(preds):
             writer.writerow({"id": i, "label": pred})
-
-
-def read_prob_weights_cached(file: str):
-    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
-    prob_per_word = {}
-
-    for i in df.index:
-        prob_per_word[df["word"][i]] = df["weight"][i]
-
-    return prob_per_word

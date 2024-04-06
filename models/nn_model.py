@@ -23,7 +23,7 @@ class CustomDataset(Dataset):
 
 class NNModel(Model):
     def __init__(self, mode="debug", preprocessing="glove_rtf_igm"):
-        super(NNModel, self).__init__("nn_model", mode, preprocessing)
+        super(NNModel, self).__init__(mode, preprocessing, separate_word_embeddings=True)
 
         self.train_data = CustomDataset(self.X_train, self.y_train)
         self.test_data = CustomDataset(self.X_test, self.y_test)

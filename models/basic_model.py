@@ -6,7 +6,7 @@ from utils import write_preds
 
 class BasicModel(Model):
     def __init__(self, mode="debug", preprocessing="glove_rtf_igm"):
-        super(BasicModel, self).__init__("basic_model", mode, preprocessing)
+        super(BasicModel, self).__init__(mode, preprocessing)
 
     def run(self):
         print("Running SVM")
