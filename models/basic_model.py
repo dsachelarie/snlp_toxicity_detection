@@ -9,8 +9,6 @@ class BasicModel(Model):
         super(BasicModel, self).__init__(mode, preprocessing)
 
     def run(self):
-        print("Running SVM")
-
         svm = SVC()
         svm.fit(self.X_train, self.y_train)
         preds = svm.predict(self.X_test)

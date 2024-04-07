@@ -60,37 +60,28 @@ def igm(word: str, counts: dict, no_words_per_label: list) -> float:
     return 1 + IGM_LAMBDA * a_b
 
 
-def get_igm_weights(file: str) -> dict:
+def get_igm_weights(data: DataFrame) -> dict:
     print("Calculating igm weights")
     start_time = datetime.now()
 
-    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
-    stemmer = PorterStemmer()
-    stems = []
-    labels = []
     stem_counts = {0: {}, 1: {}}
 
-    for i in df.index:
-        sample = tokenize(df["text"][i])
-        sample_stems = []
+    for i in data.index:
+        sample = data["stemmed_text"][i]
 
         for word in sample:
-            stemmed_word = stemmer.stem(word)
-            sample_stems.append(stemmed_word)
-
-            if stemmed_word in stem_counts[df["label"][i]]:
-                stem_counts[df["label"][i]][stemmed_word] += 1
+            if word in stem_counts[data["label"][i]]:
+                stem_counts[data["label"][i]][word] += 1
 
             else:
-                stem_counts[df["label"][i]][stemmed_word] = 1
-
-        stems.append(sample_stems)
-        labels.append(df["label"][i])
+                stem_counts[data["label"][i]][word] = 1
 
     no_words_per_label = [sum(stem_counts[0].values()), sum(stem_counts[1].values())]
     prob_per_word = {}
 
-    for sample in stems:
+    for i in data.index:
+        sample = data["stemmed_text"][i]
+
         for word in sample:
             if word not in prob_per_word:
                 prob_per_word[word] = igm(word, stem_counts, no_words_per_label)
@@ -179,7 +170,18 @@ def add_embeddings(data: DataFrame, igm_weights=None, separate_word_embeddings=F
 
 
 def balance_dataset(data: DataFrame) -> DataFrame:
-    return data
+    print("Balancing dataset")
+    start_time = datetime.now()
+
+    data_0 = data[data["label"] == 0]
+    data_1 = data[data["label"] == 1]
+    data_0_sampled = data_0.sample(n=data_1.shape[0], replace=False)
+    balanced_data = pd.concat([data_0_sampled, data_1])
+    balanced_data = balanced_data.sample(frac=1).reset_index(drop=True)
+
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
+
+    return balanced_data
 
 
 def get_embeddings_only(data: DataFrame) -> (list, list):
