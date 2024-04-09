@@ -1,4 +1,4 @@
-from utils import read_data, get_igm_weights, add_embeddings, balance_dataset, get_embeddings_only
+from utils import read_data, get_igm_weights, add_embeddings, balance_dataset, get_embeddings_only, get_glove_embeddings
 
 
 class Model:
@@ -6,12 +6,14 @@ class Model:
         self.mode = mode
         igm_per_word = None
 
+        embeddings = get_glove_embeddings()
+
         train_data = read_data("data/train_2024.csv")
 
         if preprocessing == "glove_rtf_igm":
             igm_per_word = get_igm_weights(train_data)
 
-        train_data = add_embeddings(train_data, igm_weights=igm_per_word, separate_word_embeddings=separate_word_embeddings)
+        train_data = add_embeddings(train_data, embeddings, igm_weights=igm_per_word, separate_word_embeddings=separate_word_embeddings)
         train_data = balance_dataset(train_data)
 
         if self.mode == "debug":
@@ -23,7 +25,7 @@ class Model:
         else:
             raise Exception(f"Mode \"{self.mode}\" is not supported!")
 
-        test_data = add_embeddings(test_data, igm_weights=igm_per_word, separate_word_embeddings=separate_word_embeddings)
+        test_data = add_embeddings(test_data, embeddings, igm_weights=igm_per_word, separate_word_embeddings=separate_word_embeddings)
 
         self.X_train, self.y_train = get_embeddings_only(train_data)
         self.X_test, self.y_test = get_embeddings_only(test_data)

@@ -6,33 +6,33 @@ class AlexNet(nn.Module):
     def __init__(self):
         super(AlexNet, self).__init__()
 
-        self.dropout1 = nn.Dropout2d(0.4)
-
         self.conv1 = nn.Sequential(
-          nn.Conv2d(300, 64, kernel_size=(11, 11)),
+          nn.Conv2d(1, 64, kernel_size=(11, 11)),
           nn.ELU(),
-          nn.MaxPool2d(kernel_size=11)
+          nn.MaxPool2d(kernel_size=(290, 290))
         )
 
         self.conv2 = nn.Sequential(
-          nn.Conv2d(300, 64, kernel_size=(5, 5)),
+          nn.Conv2d(1, 64, kernel_size=(5, 5)),
           nn.ELU(),
-          nn.MaxPool2d(kernel_size=5)
+          nn.MaxPool2d(kernel_size=(296, 296))
         )
 
         self.conv3 = nn.Sequential(
-          nn.Conv2d(300, 64, kernel_size=(3, 3)),
+          nn.Conv2d(1, 64, kernel_size=(3, 3)),
           nn.ELU(),
-          nn.MaxPool2d(kernel_size=3)
+          nn.MaxPool2d(kernel_size=(298, 298))
         )
 
-        self.dropout2 = nn.Dropout(0.4)
+        self.dropout1 = nn.Dropout(0.4)
 
         self.fc = nn.Sequential(
             nn.Linear(192, 256),
             nn.Dropout(0.2),
             nn.Linear(256, 1)
         )
+
+        self.dropout2 = nn.Dropout(0.2)
 
     def forward(self, x):
         """
@@ -43,14 +43,12 @@ class AlexNet(nn.Module):
           y of shape (batch_size, 1): Output.
         """
 
-        x = self.dropout1(x)
-        x1 = self.conv1(x)
-        x2 = self.conv2(x)
-        x3 = self.conv3(x)
-        y = torch.flatten(self.dropout2(torch.cat((x1, x2, x3), dim=1)))
+        x = x.unsqueeze(1)
+        x1 = self.conv1(x).squeeze(3)
+        x2 = self.conv2(x).squeeze(3)
+        x3 = self.conv3(x).squeeze(3)
 
-        print(y.shape)
+        y = torch.flatten(self.dropout1(torch.cat((x1, x2, x3), dim=2)), start_dim=1, end_dim=2)
+        y = self.dropout2(self.fc(y))
 
-        y = self.fc(y)
-
-        return y
+        return y.squeeze(1)

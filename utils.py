@@ -14,6 +14,7 @@ nltk.download("stopwords")
 
 GLOVE_PATH = "data/glove.6B.300d.txt"
 NO_GLOVE_DIMENSIONS = 300
+MAX_SENTENCE_LENGTH = 300
 PREPROCESSING_METHODS = ["glove", "glove_rtf_igm", "pretrained"]
 IGM_LAMBDA = 7.0
 
@@ -92,11 +93,16 @@ def get_igm_weights(data: DataFrame) -> dict:
 
 
 def get_glove_embeddings() -> dict:
+    print("Fetching GloVe embeddings")
+    start_time = datetime.now()
+
     df = pd.read_csv("data/glove.6B.300d.txt", header=None, sep=" ", quoting=csv.QUOTE_NONE)
     glove = {}
 
     for i in df.index:
         glove[df[0][i]] = list(df.iloc[i, 1:])
+
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
 
     return glove
 
@@ -155,11 +161,10 @@ def read_data(file: str) -> DataFrame:
     return data
 
 
-def add_embeddings(data: DataFrame, igm_weights=None, separate_word_embeddings=False) -> DataFrame:
+def add_embeddings(data: DataFrame, embeddings: dict, igm_weights=None, separate_word_embeddings=False) -> DataFrame:
     print("Adding embeddings")
     start_time = datetime.now()
 
-    embeddings = get_glove_embeddings()
     data["embedding"] = data.apply(lambda sample: vectorize(sample["text"], sample["stemmed_text"],
                                                             embeddings, igm_weights=igm_weights,
                                                             separate_word_embeddings=separate_word_embeddings), axis=1)
@@ -198,3 +203,13 @@ def write_preds(file: str, preds: list):
 
         for i, pred in enumerate(preds):
             writer.writerow({"id": i, "label": pred})
+
+
+def pad_sentences(data: list) -> list:
+    empty_embedding = [0] * NO_GLOVE_DIMENSIONS
+
+    for sample in data:
+        for i in range(MAX_SENTENCE_LENGTH - len(sample)):
+            sample.append(empty_embedding.copy())
+
+    return data
