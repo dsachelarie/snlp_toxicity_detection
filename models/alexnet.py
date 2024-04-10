@@ -2,26 +2,30 @@ import torch
 import torch.nn as nn
 
 
+NO_GLOVE_DIMENSIONS = 300
+MAX_SENTENCE_LENGTH = 200
+
+
 class AlexNet(nn.Module):
     def __init__(self):
         super(AlexNet, self).__init__()
 
         self.conv1 = nn.Sequential(
-          nn.Conv2d(1, 64, kernel_size=(11, 11)),
+          nn.Conv2d(1, 64, kernel_size=(11, NO_GLOVE_DIMENSIONS)),
           nn.ELU(),
-          nn.MaxPool2d(kernel_size=(290, 290))
+          nn.MaxPool2d(kernel_size=(MAX_SENTENCE_LENGTH - 10, 1))
         )
 
         self.conv2 = nn.Sequential(
-          nn.Conv2d(1, 64, kernel_size=(5, 5)),
+          nn.Conv2d(1, 64, kernel_size=(5, NO_GLOVE_DIMENSIONS)),
           nn.ELU(),
-          nn.MaxPool2d(kernel_size=(296, 296))
+          nn.MaxPool2d(kernel_size=(MAX_SENTENCE_LENGTH - 4, 1))
         )
 
         self.conv3 = nn.Sequential(
-          nn.Conv2d(1, 64, kernel_size=(3, 3)),
+          nn.Conv2d(1, 64, kernel_size=(3, NO_GLOVE_DIMENSIONS)),
           nn.ELU(),
-          nn.MaxPool2d(kernel_size=(298, 298))
+          nn.MaxPool2d(kernel_size=(MAX_SENTENCE_LENGTH - 2, 1))
         )
 
         self.dropout1 = nn.Dropout(0.4)
@@ -37,7 +41,7 @@ class AlexNet(nn.Module):
     def forward(self, x):
         """
         Args:
-          x of shape (batch_size, 200, 300): Input embeddings.
+          x of shape (batch_size, MAX_SENTENCE_LENGTH, NO_GLOVE_DIMENSIONS): Input embeddings.
 
         Returns:
           y of shape (batch_size, 1): Output.

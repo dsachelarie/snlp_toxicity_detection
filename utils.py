@@ -14,8 +14,7 @@ nltk.download("stopwords")
 
 GLOVE_PATH = "data/glove.6B.300d.txt"
 NO_GLOVE_DIMENSIONS = 300
-MAX_SENTENCE_LENGTH = 300
-PREPROCESSING_METHODS = ["glove", "glove_rtf_igm", "pretrained"]
+MAX_SENTENCE_LENGTH = 200
 IGM_LAMBDA = 7.0
 
 
@@ -152,7 +151,7 @@ def read_data(file: str) -> DataFrame:
     print("Reading data")
     start_time = datetime.now()
 
-    data = pd.read_csv(file, quoting=csv.QUOTE_NONE)
+    data = pd.read_csv(file, quoting=csv.QUOTE_NONE)  # [:50000]
     data["text"] = data["text"].apply(tokenize)
     data["stemmed_text"] = data["text"].apply(stem)
 
@@ -205,11 +204,14 @@ def write_preds(file: str, preds: list):
             writer.writerow({"id": i, "label": pred})
 
 
-def pad_sentences(data: list) -> list:
+def pad_trunc_sentences(data: list) -> list:
     empty_embedding = [0] * NO_GLOVE_DIMENSIONS
 
-    for sample in data:
-        for i in range(MAX_SENTENCE_LENGTH - len(sample)):
+    for i, sample in enumerate(data):
+        if len(sample) > MAX_SENTENCE_LENGTH:
+            data[i] = sample[:MAX_SENTENCE_LENGTH]
+
+        while len(sample) < MAX_SENTENCE_LENGTH:
             sample.append(empty_embedding.copy())
 
     return data
