@@ -17,7 +17,7 @@ class BasicModel(Model):
             print(f1_score(preds, self.y_test))
 
         elif self.mode == "release":
-            write_preds("data/preds.csv", preds)
+            write_preds("data/preds_svm.csv", preds)
 
         else:
             raise Exception(f"Mode \"{self.mode}\" is not supported!")

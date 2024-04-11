@@ -151,9 +151,12 @@ def read_data(file: str) -> DataFrame:
     print("Reading data")
     start_time = datetime.now()
 
-    data = pd.read_csv(file, quoting=csv.QUOTE_NONE)  # [:50000]
+    data = pd.read_csv(file, quoting=csv.QUOTE_NONE)
     data["text"] = data["text"].apply(tokenize)
     data["stemmed_text"] = data["text"].apply(stem)
+
+    if data["label"][0] == "?":
+        data["label"] = data["label"].apply(lambda sample: 0)
 
     print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
 
