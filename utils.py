@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import csv
 import math
+from collections import Counter
 
 from pandas import DataFrame
 
@@ -218,3 +219,36 @@ def pad_trunc_sentences(data: list) -> list:
             sample.append(empty_embedding.copy())
 
     return data
+
+
+def write_ensemble_preds(file_names: list):
+
+    all_preds = []
+
+    # Reading predictions from each file
+    for file_name in file_names:
+        with open(file_name, 'r') as file:
+            reader = csv.reader(file)
+            next(reader)
+            predictions = [int(row[1]) for row in reader]
+            all_preds.append(predictions)
+
+    print("Writing predictions to file")
+
+    with open("data/ensemble_preds.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["id", "label"])
+
+        writer.writeheader()
+
+        for i, preds in enumerate(zip(*all_preds)):
+
+            #data_point_preds = [preds[0][i], preds[1][i], preds[2][i]]
+            most_common_prediction = max(set(preds), key=preds.count)
+            writer.writerow({"id": i, "label": most_common_prediction})
+
+
+    #ensemble_preds = []
+    # Selecting the most common prediction for each data point
+    #for predictions in zip(*all_preds):
+    #    most_common_prediction = Counter(predictions).most_common(1)[0][0]
+    #    ensemble_preds.append(most_common_prediction)
