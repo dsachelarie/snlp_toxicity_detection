@@ -1,12 +1,11 @@
 from models.basic_model import BasicModel
 from models.bert_model import BertModel
-from utils import write_ensemble_preds
 
 
 if __name__ == "__main__":
-    #model = BasicModel(mode="debug", preprocessing="glove_rtf_igm")
+    # model = BasicModel(mode="release", preprocessing="glove_rtf_igm")
     # model = BertModel(preprocessing="glove_rtf_igm")
-    # model = BertModel()
+    # model = NNModel(mode="debug", preprocessing="glove_rtf_igm")
 
     #model.run()
 

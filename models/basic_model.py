@@ -1,7 +1,6 @@
+from models.model import Model
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
-
-from models.model import Model
 from utils import write_preds
 
 
@@ -10,8 +9,6 @@ class BasicModel(Model):
         super(BasicModel, self).__init__(mode, preprocessing)
 
     def run(self):
-        print("Running SVM")
-
         svm = SVC()
         svm.fit(self.X_train, self.y_train)
         preds = svm.predict(self.X_test)
@@ -20,7 +17,7 @@ class BasicModel(Model):
             print(f1_score(preds, self.y_test))
 
         elif self.mode == "release":
-            write_preds("data/preds.csv", preds)
+            write_preds("data/preds_svm.csv", preds)
 
         else:
             raise Exception(f"Mode \"{self.mode}\" is not supported!")

@@ -142,9 +142,6 @@ if __name__ == "__main__":
     real_test_df["label"] = 0
     real_test_df = real_test_df[["text", "label"]]
 
-    #print(test_df[:10])
-    #print(real_test_df[:10])
-
     train_df_0 = train_df[train_df["label"] == 0]
     train_df_1 = train_df[train_df["label"] == 1]
     ones = train_df_1.shape[0]
@@ -164,10 +161,6 @@ if __name__ == "__main__":
     # Converting logits to probabilities
     probs = F.softmax(torch.tensor(val_preds), dim=1)
     predicted_class = torch.argmax(probs, dim=1)
-    #print("preds: ")
-    #print(predicted_class.numpy())
-    #print("true labels: ")
-    #print(val_labels)
 
     print("F1-score is: ")
     print(f1_score(val_labels, predicted_class.numpy()))
@@ -185,6 +178,3 @@ if __name__ == "__main__":
     #    model.write_preds("data/preds_bert_uncased.csv", test_preds_list)
     #elif MODEL_NAME == "bert-base-cased":
     #    model.write_preds("data/preds_bert_cased.csv", test_preds_list)
-    
-    #print("preds: ")
-    #print(test_predicted_class.numpy())

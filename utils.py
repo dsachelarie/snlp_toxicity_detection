@@ -3,16 +3,19 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
+import numpy as np
 import pandas as pd
 import csv
 import math
 from collections import Counter
 
+from pandas import DataFrame
+
 nltk.download("stopwords")
 
 GLOVE_PATH = "data/glove.6B.300d.txt"
 NO_GLOVE_DIMENSIONS = 300
-PREPROCESSING_METHODS = ["glove", "glove_rtf_igm", "pretrained"]
+MAX_SENTENCE_LENGTH = 200
 IGM_LAMBDA = 7.0
 
 
@@ -29,6 +32,16 @@ def tokenize(text: str) -> list:
     text = list(filter(lambda word: word.isalpha(), text))
 
     return text
+
+
+def stem(text: list) -> list:
+    stemmer = PorterStemmer()
+    stemmed = []
+
+    for word in text:
+        stemmed.append(stemmer.stem(word))
+
+    return stemmed
 
 
 def igm(word: str, counts: dict, no_words_per_label: list) -> float:
@@ -48,151 +61,139 @@ def igm(word: str, counts: dict, no_words_per_label: list) -> float:
     return 1 + IGM_LAMBDA * a_b
 
 
-def get_rtf_igm_weights(file: str, cache=None, prob_per_word=None) -> (list, dict):
-    print("Calculating rtf-igm weights")
-
+def get_igm_weights(data: DataFrame) -> dict:
+    print("Calculating igm weights")
     start_time = datetime.now()
-    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
-    stemmer = PorterStemmer()
-    stems = []
-    labels = []
+
     stem_counts = {0: {}, 1: {}}
 
-    for i in df.index:
-        sample = tokenize(df["text"][i])
-        sample_stems = []
+    for i in data.index:
+        sample = data["stemmed_text"][i]
 
         for word in sample:
-            stemmed_word = stemmer.stem(word)
-            sample_stems.append(stemmed_word)
-
-            if stemmed_word in stem_counts[df["label"][i]]:
-                stem_counts[df["label"][i]][stemmed_word] += 1
+            if word in stem_counts[data["label"][i]]:
+                stem_counts[data["label"][i]][word] += 1
 
             else:
-                stem_counts[df["label"][i]][stemmed_word] = 1
+                stem_counts[data["label"][i]][word] = 1
 
-        stems.append(sample_stems)
-        labels.append(df["label"][i])
-
-    weights = []
     no_words_per_label = [sum(stem_counts[0].values()), sum(stem_counts[1].values())]
+    prob_per_word = {}
 
-    if prob_per_word is None:
-        prob_per_word = {}
-
-    for sample in stems:
-        sample_weights = []
+    for i in data.index:
+        sample = data["stemmed_text"][i]
 
         for word in sample:
             if word not in prob_per_word:
                 prob_per_word[word] = igm(word, stem_counts, no_words_per_label)
 
-            sample_weights.append(math.sqrt(sample.count(word) / len(sample)) * prob_per_word[word])
-
-        weights.append(sample_weights)
-
-    if cache is not None:
-        with open(cache, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=["word", "weight"])
-
-            writer.writeheader()
-
-            for key in prob_per_word.keys():
-                writer.writerow({"word": key, "weight": prob_per_word[key]})
-
     print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
 
-    #print(list(prob_per_word.items())[:20])
-
-    return weights, prob_per_word
-
-
-def get_rtf_igm_test_weights(file: str, prob_per_word: dict) -> list:
-    print("Calculating rtf-igm test weights")
-
-    start_time = datetime.now()
-    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
-    stemmer = PorterStemmer()
-    weights = []
-    # when we have no "igm" information, we consider the word to be occurring with equal frequency in both classes
-    default_prob = 1 + IGM_LAMBDA
-
-    for i in df.index:
-        sample = tokenize(df["text"][i])
-        sample = [stemmer.stem(word) for word in sample]
-        sample_weights = []
-
-        for word in sample:
-            if word in prob_per_word:
-                sample_weights.append(math.sqrt(sample.count(word) / len(sample)) * prob_per_word[word])
-
-            else:
-                sample_weights.append(math.sqrt(sample.count(word) / len(sample)) * default_prob)
-
-        weights.append(sample_weights)
-
-    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
-
-    return weights
+    return prob_per_word
 
 
 def get_glove_embeddings() -> dict:
+    print("Fetching GloVe embeddings")
+    start_time = datetime.now()
+
     df = pd.read_csv("data/glove.6B.300d.txt", header=None, sep=" ", quoting=csv.QUOTE_NONE)
     glove = {}
 
     for i in df.index:
         glove[df[0][i]] = list(df.iloc[i, 1:])
 
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
+
     return glove
 
 
-def vectorize(text: list, embeddings: dict, weights=None) -> list:
-    vectorized = [0] * NO_GLOVE_DIMENSIONS
+def vectorize(text: list, stemmed_text: list, embeddings: dict, igm_weights=None, separate_word_embeddings=False) -> list:
+    if separate_word_embeddings:
+        vectorized = list(np.zeros((len(text), NO_GLOVE_DIMENSIONS)))
+    else:
+        vectorized = [0] * NO_GLOVE_DIMENSIONS
 
     for i, word in enumerate(text):
         if word in embeddings:
             word_embedding = embeddings[word]
+            stemmed_word = stemmed_text[i]
 
             for j in range(NO_GLOVE_DIMENSIONS):
-                if weights is not None:
-                    vectorized[j] += (weights[i] * word_embedding[j])
+                if separate_word_embeddings:
+                    if igm_weights is not None and stemmed_word in igm_weights:
+                        vectorized[i][j] = math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) * \
+                                           igm_weights[stemmed_word] * word_embedding[j]
+
+                    # When we have no "igm" information, we consider the word to be occurring with equal frequency in both classes
+                    elif igm_weights is not None:
+                        vectorized[i][j] = math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) * \
+                                           (1 + IGM_LAMBDA) * word_embedding[j]
+
+                    else:
+                        vectorized[i][j] = word_embedding[j]
 
                 else:
-                    vectorized[j] += word_embedding[j]
+                    if igm_weights is not None and stemmed_word in igm_weights:
+                        vectorized[j] += (math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) *
+                                          igm_weights[stemmed_word] * word_embedding[j])
+
+                    # When we have no "igm" information, we consider the word to be occurring with equal frequency in both classes
+                    elif igm_weights is not None:
+                        vectorized[j] += math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) * \
+                                         (1 + IGM_LAMBDA) * word_embedding[j]
+
+                    else:
+                        vectorized[j] += word_embedding[j]
 
     return vectorized
 
 
-def read_data(file: str, preprocessing: str, weights=None) -> (list, list):
-    print("Preprocessing data")
-    assert preprocessing in PREPROCESSING_METHODS, f"Preprocessing method \"{preprocessing}\" is not supported!"
-
+def read_data(file: str) -> DataFrame:
+    print("Reading data")
     start_time = datetime.now()
-    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
 
-    if preprocessing == "pretrained":
-        return df["text"], df["label"]
+    data = pd.read_csv(file, quoting=csv.QUOTE_NONE)
+    data["text"] = data["text"].apply(tokenize)
+    data["stemmed_text"] = data["text"].apply(stem)
 
-    X = []
-    y = []
-    embeddings = get_glove_embeddings()
-
-    for i in df.index:
-        sample = tokenize(df["text"][i])
-
-        if weights is not None:
-            sample = vectorize(sample, embeddings, weights[i])
-
-        else:
-            sample = vectorize(sample, embeddings)
-
-        X.append(sample)
-        y.append(df["label"][i])
+    if data["label"][0] == "?":
+        data["label"] = data["label"].apply(lambda sample: 0)
 
     print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
 
-    return X, y
+    return data
+
+
+def add_embeddings(data: DataFrame, embeddings: dict, igm_weights=None, separate_word_embeddings=False) -> DataFrame:
+    print("Adding embeddings")
+    start_time = datetime.now()
+
+    data["embedding"] = data.apply(lambda sample: vectorize(sample["text"], sample["stemmed_text"],
+                                                            embeddings, igm_weights=igm_weights,
+                                                            separate_word_embeddings=separate_word_embeddings), axis=1)
+
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
+
+    return data
+
+
+def balance_dataset(data: DataFrame) -> DataFrame:
+    print("Balancing dataset")
+    start_time = datetime.now()
+
+    data_0 = data[data["label"] == 0]
+    data_1 = data[data["label"] == 1]
+    data_0_sampled = data_0.sample(n=data_1.shape[0], replace=False)
+    balanced_data = pd.concat([data_0_sampled, data_1])
+    balanced_data = balanced_data.sample(frac=1).reset_index(drop=True)
+
+    print(f"Completed in {round((datetime.now() - start_time).total_seconds())} seconds")
+
+    return balanced_data
+
+
+def get_embeddings_only(data: DataFrame) -> (list, list):
+    return data["embedding"].tolist(), data["label"].tolist()
 
 
 def write_preds(file: str, preds: list):
@@ -207,14 +208,18 @@ def write_preds(file: str, preds: list):
             writer.writerow({"id": i, "label": pred})
 
 
-def read_prob_weights_cached(file: str):
-    df = pd.read_csv(file, quoting=csv.QUOTE_NONE)
-    prob_per_word = {}
+def pad_trunc_sentences(data: list) -> list:
+    empty_embedding = [0] * NO_GLOVE_DIMENSIONS
 
-    for i in df.index:
-        prob_per_word[df["word"][i]] = df["weight"][i]
+    for i, sample in enumerate(data):
+        if len(sample) > MAX_SENTENCE_LENGTH:
+            data[i] = sample[:MAX_SENTENCE_LENGTH]
 
-    return prob_per_word
+        while len(sample) < MAX_SENTENCE_LENGTH:
+            sample.append(empty_embedding.copy())
+
+    return data
+
 
 def write_ensemble_preds(file_names: list):
 
@@ -247,5 +252,3 @@ def write_ensemble_preds(file_names: list):
     #for predictions in zip(*all_preds):
     #    most_common_prediction = Counter(predictions).most_common(1)[0][0]
     #    ensemble_preds.append(most_common_prediction)
-
-    

@@ -1,35 +1,31 @@
-import os
-
-from sklearn.model_selection import train_test_split
-from utils import read_data, get_rtf_igm_weights, read_prob_weights_cached, get_rtf_igm_test_weights
+from utils import read_data, get_igm_weights, add_embeddings, balance_dataset, get_embeddings_only, get_glove_embeddings
 
 
 class Model:
-    def __init__(self, mode="debug", preprocessing="glove"):
+    def __init__(self, mode="debug", preprocessing="glove", separate_word_embeddings=False):
         self.mode = mode
-        weights = None
-        prob_per_word = None
+        igm_per_word = None
 
-        if preprocessing == "glove_rtf_igm" and not os.path.isfile("data/cache_prob_weights.csv"):
-            weights, prob_per_word = get_rtf_igm_weights("data/train_2024.csv", cache="data/cache_prob_weights.csv")
+        embeddings = get_glove_embeddings()
 
-        elif preprocessing == "glove_rtf_igm":
-            print("Cache file found for rtf-igm weights")
+        train_data = read_data("data/train_2024.csv")
 
-            prob_per_word = read_prob_weights_cached("data/cache_prob_weights.csv")
-            weights, prob_per_word = get_rtf_igm_weights("data/train_2024.csv", prob_per_word=prob_per_word)
+        if preprocessing == "glove_rtf_igm":
+            igm_per_word = get_igm_weights(train_data)
+
+        train_data = add_embeddings(train_data, embeddings, igm_weights=igm_per_word, separate_word_embeddings=separate_word_embeddings)
+        train_data = balance_dataset(train_data)
 
         if self.mode == "debug":
-            X, y = read_data("data/train_2024.csv", preprocessing, weights=weights)
-            self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.1)
+            test_data = read_data("data/dev_2024.csv")
 
         elif self.mode == "release":
-            self.X_train, self.y_train = read_data("data/train_2024.csv", preprocessing, weights=weights)
-
-            if preprocessing == "glove_rtf_igm":
-                weights = get_rtf_igm_test_weights("data/test_2024.csv", prob_per_word)
-
-            self.X_test, self.y_test = read_data("data/test_2024.csv", preprocessing, weights=weights)
+            test_data = read_data("data/test_2024.csv")
 
         else:
             raise Exception(f"Mode \"{self.mode}\" is not supported!")
+
+        test_data = add_embeddings(test_data, embeddings, igm_weights=igm_per_word, separate_word_embeddings=separate_word_embeddings)
+
+        self.X_train, self.y_train = get_embeddings_only(train_data)
+        self.X_test, self.y_test = get_embeddings_only(test_data)
