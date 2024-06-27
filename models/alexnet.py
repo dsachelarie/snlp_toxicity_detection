@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 
+"""
+As presented in Singh et al., "AlexNet architecture based convolutional neural network for
+toxic comments classification".
+"""
+
 
 NO_GLOVE_DIMENSIONS = 300
 MAX_SENTENCE_LENGTH = 200

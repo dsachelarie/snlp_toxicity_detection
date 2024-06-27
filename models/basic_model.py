@@ -1,6 +1,6 @@
 from models.model import Model
 from sklearn.svm import SVC
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, f1_score
 from utils import write_preds
 
 
@@ -14,6 +14,7 @@ class BasicModel(Model):
         preds = svm.predict(self.X_test)
 
         if self.mode == "debug":
+            print(accuracy_score(preds, self.y_test))
             print(f1_score(preds, self.y_test))
 
         elif self.mode == "release":

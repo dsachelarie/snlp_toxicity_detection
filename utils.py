@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import csv
 import math
-from collections import Counter
 
 from pandas import DataFrame
 
@@ -20,15 +19,15 @@ IGM_LAMBDA = 7.0
 
 
 def tokenize(text: str) -> list:
-    # lowercasing and tokenization
+    # Lowercasing and tokenization
     text = word_tokenize(text)
     text = map(lambda sample: sample.lower(), text)
 
-    # stopword removal
+    # Stopword removal
     stop_words = set(stopwords.words("english"))
     text = list(filter(lambda sample: sample not in stop_words, text))
 
-    # removal of words with non-alpha characters
+    # Removal of words with non-alpha characters
     text = list(filter(lambda word: word.isalpha(), text))
 
     return text
@@ -45,6 +44,9 @@ def stem(text: list) -> list:
 
 
 def igm(word: str, counts: dict, no_words_per_label: list) -> float:
+    # The IGM term of RTF-IGM is defined for binary classification as 1 + lambda * frequency_in_A / frequency_in_B,
+    # where A is the class in which the word is more frequent - Chen et al., "Turning from TF-IDF to TF-IGM
+    # for term weighting in text classification"
     if (word not in counts[0] or counts[0][word] == 1) and (word not in counts[1] or counts[1][word] == 1):
         a_b = 1  # avoiding a_b values < 1 when word occurs only once or 0 times in both classes
 
@@ -67,6 +69,7 @@ def get_igm_weights(data: DataFrame) -> dict:
 
     stem_counts = {0: {}, 1: {}}
 
+    # Get counts of each word (stem) per label and total number of words per label
     for i in data.index:
         sample = data["stemmed_text"][i]
 
@@ -80,6 +83,7 @@ def get_igm_weights(data: DataFrame) -> dict:
     no_words_per_label = [sum(stem_counts[0].values()), sum(stem_counts[1].values())]
     prob_per_word = {}
 
+    # Get igm value for each word
     for i in data.index:
         sample = data["stemmed_text"][i]
 
@@ -108,6 +112,8 @@ def get_glove_embeddings() -> dict:
 
 
 def vectorize(text: list, stemmed_text: list, embeddings: dict, igm_weights=None, separate_word_embeddings=False) -> list:
+    # The function returns either a list of scaled embeddings (one for each word in the sample),
+    # or one aggregated vector for the entire sample
     if separate_word_embeddings:
         vectorized = list(np.zeros((len(text), NO_GLOVE_DIMENSIONS)))
     else:
@@ -120,28 +126,34 @@ def vectorize(text: list, stemmed_text: list, embeddings: dict, igm_weights=None
 
             for j in range(NO_GLOVE_DIMENSIONS):
                 if separate_word_embeddings:
+                    # Using the igm weights for scaling the word embedding
                     if igm_weights is not None and stemmed_word in igm_weights:
                         vectorized[i][j] = math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) * \
                                            igm_weights[stemmed_word] * word_embedding[j]
 
-                    # When we have no "igm" information, we consider the word to be occurring with equal frequency in both classes
+                    # If there is no "igm" information for the word,
+                    # the word is considered to be occurring with equal frequency in both classes
                     elif igm_weights is not None:
                         vectorized[i][j] = math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) * \
                                            (1 + IGM_LAMBDA) * word_embedding[j]
 
+                    # If there are no igm weights, the word embedding is not scaled
                     else:
                         vectorized[i][j] = word_embedding[j]
 
                 else:
+                    # Using the igm weights for scaling the word embedding
                     if igm_weights is not None and stemmed_word in igm_weights:
                         vectorized[j] += (math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) *
                                           igm_weights[stemmed_word] * word_embedding[j])
 
-                    # When we have no "igm" information, we consider the word to be occurring with equal frequency in both classes
+                    # If there is no "igm" information for the word,
+                    # the word is considered to be occurring with equal frequency in both classes
                     elif igm_weights is not None:
                         vectorized[j] += math.sqrt(stemmed_text.count(stemmed_word) / len(stemmed_text)) * \
                                          (1 + IGM_LAMBDA) * word_embedding[j]
 
+                    # If there are no igm weights, the word embedding is not scaled
                     else:
                         vectorized[j] += word_embedding[j]
 
@@ -219,36 +231,3 @@ def pad_trunc_sentences(data: list) -> list:
             sample.append(empty_embedding.copy())
 
     return data
-
-
-def write_ensemble_preds(file_names: list):
-
-    all_preds = []
-
-    # Reading predictions from each file
-    for file_name in file_names:
-        with open(file_name, 'r') as file:
-            reader = csv.reader(file)
-            next(reader)
-            predictions = [int(row[1]) for row in reader]
-            all_preds.append(predictions)
-
-    print("Writing predictions to file")
-
-    with open("data/ensemble_preds.csv", "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["id", "label"])
-
-        writer.writeheader()
-
-        for i, preds in enumerate(zip(*all_preds)):
-
-            #data_point_preds = [preds[0][i], preds[1][i], preds[2][i]]
-            most_common_prediction = max(set(preds), key=preds.count)
-            writer.writerow({"id": i, "label": most_common_prediction})
-
-
-    #ensemble_preds = []
-    # Selecting the most common prediction for each data point
-    #for predictions in zip(*all_preds):
-    #    most_common_prediction = Counter(predictions).most_common(1)[0][0]
-    #    ensemble_preds.append(most_common_prediction)

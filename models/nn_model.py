@@ -5,7 +5,7 @@ import torch.optim as optim
 
 from models.model import Model
 from models.alexnet import AlexNet
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, f1_score
 from torch.utils.data import Dataset, DataLoader
 from utils import pad_trunc_sentences, write_preds
 
@@ -73,6 +73,7 @@ class NNModel(Model):
             y = sigmoid(model(sentences))
 
             if self.mode == "debug":
+                print(accuracy_score([int(sample > 0.5) for sample in y], labels))
                 print(f1_score([int(sample > 0.5) for sample in y], labels))
 
             elif self.mode == "release":
