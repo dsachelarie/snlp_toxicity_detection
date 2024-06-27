@@ -1,3 +1,5 @@
 data/
 .idea/
 *.pyc
+models/bert_model.py
+.DS_Store
